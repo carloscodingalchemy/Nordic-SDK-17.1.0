@@ -51,6 +51,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "nrf_delay.h"
+#include "nrf_gpio.h"
 #include "boards.h"
 
 /**
@@ -58,20 +59,14 @@
  */
 int main(void)
 {
-    /* Configure board. */
-    bsp_board_init(BSP_INIT_LEDS);
+    /* Configure USER LED as an output*/
+    nrf_gpio_cfg_output(LED_USER);
+    nrf_gpio_pin_write(LED_USER, LEDS_ACTIVE_STATE ? 0 : 1);
 
     /* Toggle LEDs. */
     while (true)
     {
-        for (int i = 0; i < LEDS_NUMBER; i++)
-        {
-            bsp_board_led_invert(i);
-            nrf_delay_ms(500);
-        }
+        nrf_gpio_pin_toggle(LED_USER);
+        nrf_delay_ms(250);
     }
 }
-
-/**
- *@}
- **/
