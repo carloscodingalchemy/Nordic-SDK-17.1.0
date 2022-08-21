@@ -50,23 +50,50 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "nrf_delay.h"
 #include "nrf_gpio.h"
+#include "nrf_timer.h"
 #include "boards.h"
+
+/**
+ * @brief
+ *
+ */
+void nrfx_timer_0_irq_handler(void)
+{
+    nrf_gpio_pin_toggle(LED_USER);
+    nrf_timer_event_clear(NRF_TIMER0, nrf_timer_compare_event_get(NRF_TIMER_CC_CHANNEL0));
+    nrf_timer_task_trigger(NRF_TIMER0, NRF_TIMER_TASK_CLEAR);  
+}
 
 /**
  * @brief Function for application main entry.
  */
 int main(void)
 {
+
     /* Configure USER LED as an output*/
     nrf_gpio_cfg_output(LED_USER);
-    nrf_gpio_pin_write(LED_USER, LEDS_ACTIVE_STATE ? 0 : 1);
+    nrf_gpio_pin_write(LED_USER, 0);
 
-    /* Toggle LEDs. */
+    /* Configure the Timer 0 */
+    nrf_timer_mode_set(NRF_TIMER0, NRF_TIMER_MODE_TIMER);
+    nrf_timer_event_clear(NRF_TIMER0, nrf_timer_compare_event_get(NRF_TIMER_CC_CHANNEL0));
+    nrf_timer_frequency_set(NRF_TIMER0, NRF_TIMER_FREQ_1MHz);
+    nrf_timer_bit_width_set(NRF_TIMER0, NRF_TIMER_BIT_WIDTH_24);
+    nrf_timer_cc_write(NRF_TIMER0, NRF_TIMER_CC_CHANNEL0, 0X7A120);
+
+    /* */
+    NVIC_ClearPendingIRQ(TIMER0_IRQn);
+    NVIC_SetPriority(TIMER0_IRQn, 2);
+    NVIC_EnableIRQ(TIMER0_IRQn);
+
+    nrf_timer_int_enable(NRF_TIMER0, NRF_TIMER_INT_COMPARE0_MASK);
+
+    nrf_timer_task_trigger(NRF_TIMER0, NRF_TIMER_TASK_START);   
+
+    /* Loop waiting for interrupts from the timer 0 */
     while (true)
     {
-        nrf_gpio_pin_toggle(LED_USER);
-        nrf_delay_ms(250);
+        __WFI();
     }
 }
