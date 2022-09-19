@@ -83,11 +83,11 @@ extern "C" {
 #define BSP_BUTTON_1   BUTTON_RESET
 
 
-#define RX_PIN_NUMBER  4
-#define TX_PIN_NUMBER  5
-#define CTS_PIN_NUMBER 7
-#define RTS_PIN_NUMBER 6
-#define HWFC           true
+#define RX_PIN_NUMBER  8
+#define TX_PIN_NUMBER  6
+#define CTS_PIN_NUMBER 23
+#define RTS_PIN_NUMBER 22
+#define HWFC           false
 
 #define BSP_QSPI_SCK_PIN   19
 #define BSP_QSPI_CSN_PIN   17
@@ -111,15 +111,15 @@ extern "C" {
 #define SER_APP_SPIM0_REQ_PIN       NRF_GPIO_PIN_MAP(1,14)     // SPI REQUEST GPIO pin number
 
 // serialization CONNECTIVITY board
-#define SER_CON_RX_PIN              NRF_GPIO_PIN_MAP(1,14)    // UART RX pin number.
-#define SER_CON_TX_PIN              NRF_GPIO_PIN_MAP(1,13)    // UART TX pin number.
-#define SER_CON_CTS_PIN             NRF_GPIO_PIN_MAP(1,15)    // UART Clear To Send pin number. Not used if HWFC is set to false.
-#define SER_CON_RTS_PIN             NRF_GPIO_PIN_MAP(0,2)     // UART Request To Send pin number. Not used if HWFC is set to false.
+#define SER_CON_RX_PIN              NRF_GPIO_PIN_MAP(0,8)    // UART RX pin number.
+#define SER_CON_TX_PIN              NRF_GPIO_PIN_MAP(0,6)    // UART TX pin number.
+#define SER_CON_CTS_PIN             NRF_GPIO_PIN_MAP(1,1)    // UART Clear To Send pin number. Not used if HWFC is set to false.
+#define SER_CON_RTS_PIN             NRF_GPIO_PIN_MAP(1,2)    // UART Request To Send pin number. Not used if HWFC is set to false.
 
 
-#define SER_CON_SPIS_SCK_PIN        NRF_GPIO_PIN_MAP(0,27)    // SPI SCK signal.
-#define SER_CON_SPIS_MOSI_PIN       NRF_GPIO_PIN_MAP(0,2)     // SPI MOSI signal.
-#define SER_CON_SPIS_MISO_PIN       NRF_GPIO_PIN_MAP(0,26)    // SPI MISO signal.
+#define SER_CON_SPIS_SCK_PIN        NRF_GPIO_PIN_MAP(1,15)    // SPI SCK signal.
+#define SER_CON_SPIS_MOSI_PIN       NRF_GPIO_PIN_MAP(1,13)    // SPI MOSI signal.
+#define SER_CON_SPIS_MISO_PIN       NRF_GPIO_PIN_MAP(1,14)    // SPI MISO signal.
 #define SER_CON_SPIS_CSN_PIN        NRF_GPIO_PIN_MAP(1,13)    // SPI CSN signal.
 #define SER_CON_SPIS_RDY_PIN        NRF_GPIO_PIN_MAP(1,15)    // SPI READY GPIO pin number.
 #define SER_CON_SPIS_REQ_PIN        NRF_GPIO_PIN_MAP(1,14)    // SPI REQUEST GPIO pin number.

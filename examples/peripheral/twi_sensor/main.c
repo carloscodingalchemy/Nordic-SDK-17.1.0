@@ -47,122 +47,160 @@
  *
  */
 
-#include <stdio.h>
 #include "boards.h"
-#include "app_util_platform.h"
-#include "app_error.h"
-#include "nrf_drv_twi.h"
+#include "nrf_twi.h"
+#include "nrf_uart.h"
 #include "nrf_delay.h"
 
 
-#include "nrf_log.h"
-#include "nrf_log_ctrl.h"
-#include "nrf_log_default_backends.h"
 
-/* TWI instance ID. */
-#define TWI_INSTANCE_ID     0
+/* Common addresses definition for Lluminsity sensor. */
+#define TSL2561_ADDR                (0x39U) // Could also be 0x29 or 0x49 depending on how the ADDR_SEL pin is connected.
 
-/* Common addresses definition for temperature sensor. */
-#define LM75B_ADDR          (0x90U >> 1)
+#define TSL2561_REG_CONTROL         (0x00U)
+#define TSL2561_REG_TIMING          (0x01U)
+#define TSL2561_REG_THRESHLOWLOW    (0x02U)
+#define TSL2561_REG_THRESHLOWHIGH   (0x03U)
+#define TSL2561_REG_THRESHHIGHLOW   (0x04U)
+#define TSL2561_REG_THRESHHIGHHIGH  (0x05U)
+#define TSL2561_REG_INTERRUPT       (0x06U)
+#define TSL2561_REG_RESERVED1       (0x07U)
+#define TSL2561_REG_CRC             (0x08U)
+#define TSL2561_REG_RESERVED2       (0x09U)
+#define TSL2561_REG_ID              (0x0AU)
+#define TSL2561_REG_RESERVED3       (0x0BU)
+#define TSL2561_REG_DATA0LOW        (0x0CU)
+#define TSL2561_REG_DATA0HIGH       (0x0DU)
+#define TSL2561_REG_DATA1LOW        (0x0EU)
+#define TSL2561_REG_DATA1HIGH       (0x0FU)
 
-#define LM75B_REG_TEMP      0x00U
-#define LM75B_REG_CONF      0x01U
-#define LM75B_REG_THYST     0x02U
-#define LM75B_REG_TOS       0x03U
+#define TSL2561_CMD                 (0x80)
 
-/* Mode for LM75B. */
-#define NORMAL_MODE 0U
-
-/* Indicates if operation on TWI has ended. */
-static volatile bool m_xfer_done = false;
-
-/* TWI instance. */
-static const nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(TWI_INSTANCE_ID);
-
-/* Buffer for samples read from temperature sensor. */
-static uint8_t m_sample;
+void uart_write_byte(uint8_t value);
 
 /**
- * @brief Function for setting active mode on MMA7660 accelerometer.
- */
-void LM75B_set_mode(void)
-{
-    ret_code_t err_code;
-
-    /* Writing to LM75B_REG_CONF "0" set temperature sensor in NORMAL mode. */
-    uint8_t reg[2] = {LM75B_REG_CONF, NORMAL_MODE};
-    err_code = nrf_drv_twi_tx(&m_twi, LM75B_ADDR, reg, sizeof(reg), false);
-    APP_ERROR_CHECK(err_code);
-    while (m_xfer_done == false);
-
-    /* Writing to pointer byte. */
-    reg[0] = LM75B_REG_TEMP;
-    m_xfer_done = false;
-    err_code = nrf_drv_twi_tx(&m_twi, LM75B_ADDR, reg, 1, false);
-    APP_ERROR_CHECK(err_code);
-    while (m_xfer_done == false);
-}
-
-/**
- * @brief Function for handling data from temperature sensor.
- *
- * @param[in] temp          Temperature in Celsius degrees read from sensor.
- */
-__STATIC_INLINE void data_handler(uint8_t temp)
-{
-    NRF_LOG_INFO("Temperature: %d Celsius degrees.", temp);
-}
-
-/**
- * @brief TWI events handler.
- */
-void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
-{
-    switch (p_event->type)
-    {
-        case NRF_DRV_TWI_EVT_DONE:
-            if (p_event->xfer_desc.type == NRF_DRV_TWI_XFER_RX)
-            {
-                data_handler(m_sample);
-            }
-            m_xfer_done = true;
-            break;
-        default:
-            break;
-    }
-}
-
-/**
- * @brief UART initialization.
+ * @brief Initialise the TWI peripheral with the given parameters
+ * 
  */
 void twi_init (void)
 {
-    ret_code_t err_code;
-
-    const nrf_drv_twi_config_t twi_lm75b_config = {
-       .scl                = ARDUINO_SCL_PIN,
-       .sda                = ARDUINO_SDA_PIN,
-       .frequency          = NRF_DRV_TWI_FREQ_100K,
-       .interrupt_priority = APP_IRQ_PRIORITY_HIGH,
-       .clear_bus_init     = false
-    };
-
-    err_code = nrf_drv_twi_init(&m_twi, &twi_lm75b_config, twi_handler, NULL);
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_twi_enable(&m_twi);
+    nrf_twi_address_set(NRF_TWI0, TSL2561_ADDR);
+    nrf_twi_pins_set(NRF_TWI0, ARDUINO_SCL_PIN, ARDUINO_SDA_PIN);
+    nrf_twi_frequency_set(NRF_TWI0, NRF_TWI_FREQ_400K);
+    nrf_twi_enable(NRF_TWI0);
 }
 
 /**
- * @brief Function for reading data from temperature sensor.
+ * @brief 
+ * 
  */
-static void read_sensor_data()
+void uart_init()
 {
-    m_xfer_done = false;
 
-    /* Read 1 byte from the specified address - skip 3 bits dedicated for fractional part of temperature. */
-    ret_code_t err_code = nrf_drv_twi_rx(&m_twi, LM75B_ADDR, &m_sample, sizeof(m_sample));
-    APP_ERROR_CHECK(err_code);
+    nrf_gpio_pin_set(NRF_UART0->PSEL.TXD);
+    nrf_gpio_cfg_output(NRF_UART0->PSEL.TXD);
+    nrf_gpio_cfg_input(NRF_UART0->PSEL.RXD, NRF_GPIO_PIN_NOPULL);
+
+    nrf_uart_baudrate_set(NRF_UART0, NRF_UART_BAUDRATE_115200);
+    /* 1-stop bit is implicitly configured as it is the reset value and this function does not allow to modify the value */
+    nrf_uart_configure(NRF_UART0, NRF_UART_PARITY_EXCLUDED, NRF_UART_HWFC_DISABLED); 
+    nrf_uart_txrx_pins_set(NRF_UART0, TX_PIN_NUMBER, RX_PIN_NUMBER);
+    nrf_uart_enable(NRF_UART0);
+}
+
+void uart_write_byte(uint8_t value)
+{
+
+    nrf_uart_txd_set(NRF_UART0, value);
+    nrf_uart_event_clear(NRF_UART0, NRF_UART_EVENT_TXDRDY); // If you do not clear this event nobody will do it for you.
+    nrf_uart_task_trigger(NRF_UART0, NRF_UART_TASK_STARTTX);
+
+    
+    while (nrf_uart_event_check(NRF_UART0, NRF_UART_EVENT_TXDRDY) == false)
+    {
+        /* code */
+    }
+    
+    nrf_uart_task_trigger(NRF_UART0, NRF_UART_TASK_STOPTX);
+
+}
+
+void uart_write_string(uint8_t* message, uint32_t len)
+{
+    for (int i = 0; i < len; i++)
+    {
+        uart_write_byte(message[i]);
+    }
+    uart_write_byte('\r');
+}
+
+void tsl2561_write_byte(uint8_t address, uint8_t value)
+{
+    nrf_twi_txd_set(NRF_TWI0, (address & 0x0F) | TSL2561_CMD); // Send command byte
+    nrf_twi_event_clear(NRF_TWI0, NRF_TWI_EVENT_TXDSENT);
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STARTTX);
+
+    /* Wait until TASK_TXSEND event is rised and send a TWI_TASK_STOP */
+    while (nrf_twi_event_check(NRF_TWI0, NRF_TWI_EVENT_TXDSENT) == false)
+    {
+
+    }
+
+    nrf_twi_txd_set(NRF_TWI0, value); // Send value
+    nrf_twi_event_clear(NRF_TWI0, NRF_TWI_EVENT_TXDSENT);
+
+    /* Wait until TASK_TXSEND event is rised and send a TWI_TASK_STOP */
+    while (nrf_twi_event_check(NRF_TWI0, NRF_TWI_EVENT_TXDSENT) == false)
+    {
+
+    }
+
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STOP);
+}
+
+/**
+ * @brief initialise the tsl2561 by configuring the corresponding registers
+ * 
+ */
+void tsl2561_init(void)
+{
+    tsl2561_write_byte(TSL2561_REG_CONTROL, 0x03);
+}
+
+/**
+ * @brief Reads a value from the sensor 
+ * 
+ */
+uint8_t tsl2561_read_byte(uint8_t address)
+{
+
+    uint8_t value;
+    nrf_twi_event_clear(NRF_TWI0, NRF_TWI_EVENT_TXDSENT);
+    nrf_twi_event_clear(NRF_TWI0, NRF_TWI_EVENT_RXDREADY);
+
+    nrf_twi_txd_set(NRF_TWI0, (address & 0x0F) | TSL2561_CMD); // Send command byte
+
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STARTTX);
+
+    /* Wait until TASK_TXSEND event is rised and send a TWI_TASK_STOP */
+    while (nrf_twi_event_check(NRF_TWI0, NRF_TWI_EVENT_TXDSENT) == false)
+    {
+
+    }
+
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STARTRX);
+
+    /* Wait until EVENT_RXDREADY event is rised and send a TWI_TASK_STOP */
+    while (nrf_twi_event_check(NRF_TWI0, NRF_TWI_EVENT_RXDREADY) == false)
+    {
+    }
+
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STOP);
+    
+    value = nrf_twi_rxd_get(NRF_TWI0);
+
+
+    return value;
 }
 
 /**
@@ -170,25 +208,30 @@ static void read_sensor_data()
  */
 int main(void)
 {
-    APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
-    NRF_LOG_DEFAULT_BACKENDS_INIT();
 
-    NRF_LOG_INFO("\r\nTWI sensor example started.");
-    NRF_LOG_FLUSH();
+    uint8_t message[255];
+    uint32_t len;
+
+    /* Initialise both UART and I2C peripherals */
+    uart_init();
     twi_init();
-    LM75B_set_mode();
+    tsl2561_init();
 
+    uint8_t data0_low = 0XFF;
+    uint8_t data0_high = 0XFF;
+
+    /* Infinite loop when we read data from the sensor and send it through the UART */
     while (true)
     {
+        data0_low = tsl2561_read_byte(TSL2561_REG_DATA0LOW);
+        data0_high = tsl2561_read_byte(TSL2561_REG_DATA0HIGH);
+
+        len = sprintf((char*)message, "Value read from TSL2561: %08x_%08x\n", data0_high, data0_low);
+
+        uart_write_string(message, len);
+
         nrf_delay_ms(500);
 
-        do
-        {
-            __WFE();
-        }while (m_xfer_done == false);
-
-        read_sensor_data();
-        NRF_LOG_FLUSH();
     }
 }
 
