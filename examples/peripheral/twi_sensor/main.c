@@ -76,6 +76,33 @@
 
 #define TSL2561_CMD                 (0x80)
 
+
+// Registers of the sensor TSL2591
+#define TSL2591_ADDR            (0x29U) // Could also be 0x29 or 0x49 depending on how the ADDR_SEL pin is connected.
+
+#define TSL2591_REG_ENABLE      (0x00U)
+#define TSL2591_REG_CONFIG      (0x01U)
+#define TSL2591_REG_AILTL       (0x04U)
+#define TSL2591_REG_AILTH       (0x05U)
+#define TSL2591_REG_AIHTL       (0x06U)
+#define TSL2591_REG_AIHTH       (0x07U)
+#define TSL2591_REG_NAPAILTL    (0x08U)
+#define TSL2591_REG_NAPAILTH    (0x09U)
+#define TSL2591_REG_NAPAIHTL    (0x0AU)
+#define TSL2591_REG_NAPAIHTH    (0x0BU)
+#define TSL2591_REG_PERSIST     (0x0CU)
+#define TSL2591_REG_PID         (0x11U)
+#define TSL2591_REG_ID          (0x12U)
+#define TSL2591_REG_STATUS      (0x13U)
+#define TSL2591_REG_C0DATAL     (0x14U)
+#define TSL2591_REG_C0DATAH     (0x15U)
+#define TSL2591_REG_C1DATAL     (0x16U)
+#define TSL2591_REG_C1DATAH     (0x17U)
+
+#define TSL2591_CMD             (0x80)
+#define TSL2591_NORMAL_OP       (0x20)
+
+
 void uart_write_byte(uint8_t value);
 
 /**
@@ -84,7 +111,7 @@ void uart_write_byte(uint8_t value);
  */
 void twi_init (void)
 {
-    nrf_twi_address_set(NRF_TWI0, TSL2561_ADDR);
+    nrf_twi_address_set(NRF_TWI0, TSL2591_ADDR);
     nrf_twi_pins_set(NRF_TWI0, ARDUINO_SCL_PIN, ARDUINO_SDA_PIN);
     nrf_twi_frequency_set(NRF_TWI0, NRF_TWI_FREQ_400K);
     nrf_twi_enable(NRF_TWI0);
@@ -158,6 +185,30 @@ void tsl2561_write_byte(uint8_t address, uint8_t value)
     nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STOP);
 }
 
+void tsl2591_write_byte(uint8_t address, uint8_t value)
+{
+    nrf_twi_txd_set(NRF_TWI0, (TSL2591_CMD | TSL2591_NORMAL_OP | (address & 0x1F))); // Send command byte
+    nrf_twi_event_clear(NRF_TWI0, NRF_TWI_EVENT_TXDSENT);
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STARTTX);
+
+    /* Wait until TASK_TXSEND event is rised and send a TWI_TASK_STOP */
+    while (nrf_twi_event_check(NRF_TWI0, NRF_TWI_EVENT_TXDSENT) == false)
+    {
+
+    }
+
+    nrf_twi_txd_set(NRF_TWI0, value); // Send value
+    nrf_twi_event_clear(NRF_TWI0, NRF_TWI_EVENT_TXDSENT);
+
+    /* Wait until TASK_TXSEND event is rised and send a TWI_TASK_STOP */
+    while (nrf_twi_event_check(NRF_TWI0, NRF_TWI_EVENT_TXDSENT) == false)
+    {
+
+    }
+
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STOP);
+}
+
 /**
  * @brief initialise the tsl2561 by configuring the corresponding registers
  * 
@@ -165,6 +216,11 @@ void tsl2561_write_byte(uint8_t address, uint8_t value)
 void tsl2561_init(void)
 {
     tsl2561_write_byte(TSL2561_REG_CONTROL, 0x03);
+}
+
+void tsl2591_init(void)
+{
+    tsl2561_write_byte(TSL2591_REG_ENABLE, 0x03);
 }
 
 /**
@@ -203,6 +259,38 @@ uint8_t tsl2561_read_byte(uint8_t address)
     return value;
 }
 
+uint8_t tsl2591_read_byte(uint8_t address)
+{
+
+    uint8_t value;
+    nrf_twi_event_clear(NRF_TWI0, NRF_TWI_EVENT_TXDSENT);
+    nrf_twi_event_clear(NRF_TWI0, NRF_TWI_EVENT_RXDREADY);
+
+    nrf_twi_txd_set(NRF_TWI0, (TSL2591_CMD | TSL2591_NORMAL_OP | (address & 0x1F))); // Send command byte
+
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STARTTX);
+
+    /* Wait until TASK_TXSEND event is rised and send a TWI_TASK_STOP */
+    while (nrf_twi_event_check(NRF_TWI0, NRF_TWI_EVENT_TXDSENT) == false)
+    {
+
+    }
+
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STARTRX);
+
+    /* Wait until EVENT_RXDREADY event is rised and send a TWI_TASK_STOP */
+    while (nrf_twi_event_check(NRF_TWI0, NRF_TWI_EVENT_RXDREADY) == false)
+    {
+    }
+
+    nrf_twi_task_trigger(NRF_TWI0, NRF_TWI_TASK_STOP);
+    
+    value = nrf_twi_rxd_get(NRF_TWI0);
+
+
+    return value;
+}
+
 /**
  * @brief Function for main application entry.
  */
@@ -212,21 +300,24 @@ int main(void)
     uint8_t message[255];
     uint32_t len;
 
+
+
     /* Initialise both UART and I2C peripherals */
     uart_init();
     twi_init();
-    tsl2561_init();
+    tsl2591_init();
 
     uint8_t data0_low = 0XFF;
     uint8_t data0_high = 0XFF;
 
     /* Infinite loop when we read data from the sensor and send it through the UART */
+
     while (true)
     {
-        data0_low = tsl2561_read_byte(TSL2561_REG_DATA0LOW);
-        data0_high = tsl2561_read_byte(TSL2561_REG_DATA0HIGH);
+        data0_low = tsl2591_read_byte(TSL2591_REG_C0DATAL);
+        data0_high = tsl2591_read_byte(TSL2591_REG_C0DATAH);
 
-        len = sprintf((char*)message, "Value read from TSL2561: %08x_%08x\n", data0_high, data0_low);
+        len = sprintf((char*)message, "Value read from TSL25)1: %08x_%08x\n", data0_high, data0_low);
 
         uart_write_string(message, len);
 
