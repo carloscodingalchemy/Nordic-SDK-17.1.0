@@ -220,7 +220,7 @@ void tsl2561_init(void)
 
 void tsl2591_init(void)
 {
-    tsl2561_write_byte(TSL2591_REG_ENABLE, 0x03);
+    tsl2591_write_byte(TSL2591_REG_ENABLE, 0x03);
 }
 
 /**
